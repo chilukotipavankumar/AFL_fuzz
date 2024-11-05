@@ -1,0 +1,51 @@
+#include <stdio.h>
+#include <openssl/dh.h>
+#include <openssl/bn.h>
+#include <openssl/err.h>
+
+void fuzz_DH_generate_key(const uint8_t *data, size_t size) {
+    DH *dh = DH_new();
+    BIGNUM *p = BN_new();
+    BIGNUM *g = BN_new();
+    
+    if (!dh || !p || !g) {
+        return;
+    }
+
+    // Use the incoming data for the generator (g) and the prime (p)
+    BN_bin2bn(data, size, p);
+    BN_set_word(g, 2);  // Using a small generator value, e.g., 2
+
+    // Set the prime and generator for DH
+    if (DH_set0_pqg(dh, p, NULL, g) != 1) {
+        DH_free(dh);
+        return;
+    }
+
+    // Generate DH key pair
+    if (DH_generate_key(dh) != 1) {
+        DH_free(dh);
+        return;
+    }
+
+    DH_free(dh);
+}
+
+int main(int argc, char **argv) {
+    if (argc > 1) {
+        // Read input from file passed as argument
+        FILE *f = fopen(argv[1], "rb");
+        if (f) {
+            fseek(f, 0, SEEK_END);
+            long size = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            uint8_t *buffer = malloc(size);
+            fread(buffer, 1, size, f);
+            fclose(f);
+            
+            fuzz_DH_generate_key(buffer, size);
+            free(buffer);
+        }
+    }
+    return 0;
+}
